@@ -1,0 +1,154 @@
+# Optuna Hyperparameter Optimization Configuration
+# Objective: Maximize Deflated Sharpe Ratio
+
+sweep:
+  name: dsr_optimization
+  study_name: chronos_dsr_sweep
+
+  # Optimization settings
+  n_trials: 100
+  n_jobs: 1  # Parallel trials
+  timeout: null  # No timeout
+
+  # Sampler configuration
+  sampler:
+    name: TPESampler  # TPESampler, RandomSampler, CmaEsSampler
+    seed: 42
+    n_startup_trials: 10
+    multivariate: true
+
+  # Pruner configuration
+  pruner:
+    name: HyperbandPruner
+    min_resource: 10
+    max_resource: 100
+    reduction_factor: 3
+
+  # Direction(s) for optimization
+  directions:
+    - maximize  # DSR
+
+# Multi-objective (if using multiple objectives)
+multi_objective:
+  enabled: false
+  objectives:
+    - name: deflated_sharpe
+      direction: maximize
+      weight: 0.6
+    - name: max_drawdown
+      direction: minimize
+      weight: 0.4
+
+# Parameter search space
+search_space:
+  # Model architecture
+  model:
+    hidden_dim:
+      type: categorical
+      choices: [128, 256, 512]
+    num_layers:
+      type: int
+      low: 2
+      high: 6
+    dropout:
+      type: float
+      low: 0.0
+      high: 0.3
+
+  # Mamba specific
+  mamba:
+    d_state:
+      type: categorical
+      choices: [8, 16, 32]
+    d_conv:
+      type: categorical
+      choices: [2, 4]
+    expand:
+      type: categorical
+      choices: [1, 2, 4]
+
+  # Training
+  training:
+    lr:
+      type: loguniform
+      low: 1e-5
+      high: 1e-3
+    batch_size:
+      type: categorical
+      choices: [32, 64, 128]
+    weight_decay:
+      type: loguniform
+      low: 1e-5
+      high: 1e-2
+
+  # Sequence
+  sequence:
+    length:
+      type: categorical
+      choices: [128, 256, 512]
+
+  # Loss weights
+  loss:
+    classification_weight:
+      type: float
+      low: 0.3
+      high: 0.9
+
+  # Triple barrier
+  labeling:
+    tp_multiple:
+      type: float
+      low: 1.0
+      high: 3.0
+    sl_multiple:
+      type: float
+      low: 1.0
+      high: 3.0
+    max_holding_periods:
+      type: categorical
+      choices: [30, 60, 120, 240]
+
+  # Meta-labeler
+  meta_labeler:
+    probability_threshold:
+      type: float
+      low: 0.4
+      high: 0.7
+
+# Deflated Sharpe Ratio configuration
+dsr:
+  # Number of trials for multiple testing correction
+  num_backtests: 100
+
+  # Variance of Sharpe ratios under null
+  var_sharpe_null: 1.0
+
+  # Skewness/Kurtosis adjustments
+  adjust_skewness: true
+  adjust_kurtosis: true
+
+# Cross-validation settings (CPCV)
+cross_validation:
+  n_splits: 5
+  purge_gap: 10  # Bars to purge between train/test
+  embargo_pct: 0.01  # 1% embargo
+
+# Callbacks
+callbacks:
+  # Save best trials
+  save_best:
+    enabled: true
+    n_best: 5
+    path: ./sweeps/best_trials
+
+  # Early termination
+  early_termination:
+    enabled: true
+    patience: 20
+    min_trials: 30
+
+  # MLflow logging
+  mlflow:
+    enabled: true
+    log_params: true
+    log_metrics: true

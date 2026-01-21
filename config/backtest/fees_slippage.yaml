@@ -1,0 +1,103 @@
+# Backtesting Configuration with Realistic Fees and Slippage
+
+backtest:
+  # Time period
+  start_date: "2023-01-01"
+  end_date: null  # null = latest available
+
+  # Initial conditions
+  initial_capital: 10000.0
+  base_currency: USDT
+
+# Fee structure (Binance-like)
+fees:
+  # Maker/Taker fees (percentage)
+  maker: 0.001  # 0.1%
+  taker: 0.001  # 0.1%
+
+  # BNB discount (if applicable)
+  bnb_discount: 0.25  # 25% discount with BNB
+
+  # Funding rates (for perpetuals)
+  funding:
+    enabled: false
+    rate: 0.0001  # 0.01% every 8 hours
+
+# Slippage model
+slippage:
+  # Model type: fixed, percentage, volume_impact
+  model: volume_impact
+
+  # Fixed slippage (bps)
+  fixed_bps: 5
+
+  # Percentage slippage
+  percentage: 0.0005  # 0.05%
+
+  # Volume impact model parameters
+  volume_impact:
+    # Slippage = base + coefficient * sqrt(order_size / avg_volume)
+    base_bps: 1
+    coefficient: 10
+    volume_lookback_minutes: 60
+
+# Execution assumptions
+execution:
+  # Order fill probability
+  fill_probability: 0.95
+
+  # Partial fill settings
+  partial_fills:
+    enabled: true
+    min_fill_pct: 0.5
+
+  # Execution delay (milliseconds)
+  latency_ms: 100
+
+  # Order types available
+  order_types:
+    - market
+    - limit
+
+# Position sizing
+position_sizing:
+  method: volatility_target  # fixed, volatility_target, kelly
+
+  # Fixed position size
+  fixed:
+    size_pct: 0.1  # 10% of capital per trade
+
+  # Volatility targeting
+  volatility_target:
+    target_vol: 0.15  # 15% annualized
+    lookback_days: 20
+    max_leverage: 1.0  # No leverage
+
+  # Kelly criterion
+  kelly:
+    fraction: 0.25  # Quarter Kelly
+    max_size_pct: 0.2
+
+# Risk limits
+risk_limits:
+  max_drawdown: 0.15  # Stop trading at 15% drawdown
+  max_position_size: 0.2  # Max 20% in single position
+  max_daily_loss: 0.05  # Max 5% daily loss
+  max_correlation: 0.7  # Max correlation between positions
+
+# Benchmark
+benchmark:
+  symbol: BTC/USDT
+  strategy: buy_and_hold
+
+# Performance metrics to calculate
+metrics:
+  - total_return
+  - sharpe_ratio
+  - sortino_ratio
+  - calmar_ratio
+  - max_drawdown
+  - win_rate
+  - profit_factor
+  - avg_trade_duration
+  - trades_per_day

@@ -1,0 +1,60 @@
+# Binance Exchange Configuration
+
+exchange:
+  name: binance
+  sandbox: true  # Use testnet for paper trading
+
+  # API credentials (override via environment variables)
+  api_key: ${oc.env:BINANCE_API_KEY,""}
+  api_secret: ${oc.env:BINANCE_API_SECRET,""}
+
+  # Testnet credentials
+  testnet_api_key: ${oc.env:BINANCE_TESTNET_API_KEY,""}
+  testnet_api_secret: ${oc.env:BINANCE_TESTNET_API_SECRET,""}
+
+  # Rate limits
+  rate_limit:
+    requests_per_minute: 1200
+    orders_per_second: 10
+    orders_per_day: 200000
+
+# Symbols to trade
+symbols:
+  - BTC/USDT
+
+# WebSocket configuration
+websocket:
+  # Trade stream
+  trades:
+    enabled: true
+    reconnect_delay: 5
+    max_reconnect_attempts: 10
+
+  # Order book stream
+  orderbook:
+    enabled: true
+    depth: 20  # L2 depth
+    update_speed: 100ms  # 100ms or 1000ms
+
+# Historical data settings
+historical:
+  # CCXT fetch parameters
+  timeframe: 1m
+  limit: 1000  # Candles per request
+
+  # Backfill settings
+  start_date: "2023-01-01"
+  end_date: null  # null = current time
+
+  # Trade data
+  fetch_trades: true
+  trades_limit: 1000  # Trades per request
+
+# Data quality
+quality:
+  # Gap detection
+  max_gap_seconds: 300  # Alert if gap > 5 minutes
+
+  # Outlier detection
+  price_zscore_threshold: 5.0
+  volume_zscore_threshold: 10.0

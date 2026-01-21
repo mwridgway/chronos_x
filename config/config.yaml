@@ -1,0 +1,65 @@
+# Chronos-X Main Configuration
+# Uses Hydra for hierarchical configuration management
+
+defaults:
+  - data: binance
+  - model: mamba_default
+  - backtest: fees_slippage
+  - _self_
+
+# Global settings
+project:
+  name: chronos-x
+  version: 0.1.0
+  seed: 42
+  debug: false
+
+# Runtime environment
+env:
+  device: cuda  # cuda, cpu, mps
+  precision: 16  # 16, 32, bf16
+  num_workers: 4
+  pin_memory: true
+
+# Database connections
+database:
+  clickhouse:
+    host: localhost
+    port: 9000
+    http_port: 8123
+    database: chronos
+    user: chronos
+    password: chronos_secret
+    pool_size: 10
+
+  redis:
+    host: localhost
+    port: 6379
+    db: 0
+
+# MLflow tracking
+mlflow:
+  tracking_uri: http://localhost:5000
+  experiment_name: chronos-x
+  artifact_location: ./mlruns
+
+# Trading configuration
+trading:
+  mode: paper  # paper, live
+  base_currency: USDT
+  initial_capital: 10000.0
+  max_position_pct: 0.1  # Max 10% per position
+  max_open_positions: 3
+
+# Logging
+logging:
+  level: INFO
+  format: json
+  file: logs/chronos.log
+
+# Paths
+paths:
+  data_dir: ./data
+  models_dir: ./models
+  logs_dir: ./logs
+  checkpoints_dir: ./checkpoints

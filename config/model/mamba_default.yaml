@@ -1,0 +1,116 @@
+# CryptoMamba Model Configuration
+
+model:
+  name: crypto_mamba
+  version: "1.0"
+
+  # Architecture
+  architecture:
+    # Input dimensions
+    input_dim: 64  # Number of input features
+    hidden_dim: 256
+    num_layers: 4
+    dropout: 0.1
+
+    # Mamba block settings
+    mamba:
+      d_state: 16  # SSM state dimension
+      d_conv: 4    # Local convolution width
+      expand: 2    # Block expansion factor
+
+    # Output heads
+    heads:
+      classification:
+        enabled: true
+        num_classes: 3  # down, neutral, up
+      regression:
+        enabled: true
+        output_dim: 1   # Return prediction
+
+  # Sequence settings
+  sequence:
+    length: 256        # Input sequence length
+    stride: 1          # Sliding window stride
+    lookback_minutes: 60
+
+# Training configuration
+training:
+  # Optimization
+  optimizer:
+    name: adamw
+    lr: 1e-4
+    weight_decay: 0.01
+    betas: [0.9, 0.999]
+
+  # Learning rate schedule
+  scheduler:
+    name: cosine_annealing
+    warmup_steps: 1000
+    min_lr: 1e-6
+
+  # Training loop
+  epochs: 100
+  batch_size: 64
+  gradient_clip: 1.0
+  accumulation_steps: 1
+
+  # Early stopping
+  early_stopping:
+    enabled: true
+    patience: 10
+    min_delta: 0.001
+    monitor: val_loss
+
+  # Checkpointing
+  checkpoint:
+    save_top_k: 3
+    monitor: val_sharpe
+    mode: max
+
+# Loss function
+loss:
+  # Classification loss
+  classification:
+    name: focal_loss
+    gamma: 2.0
+    alpha: [0.25, 0.5, 0.25]  # Class weights
+
+  # Regression loss
+  regression:
+    name: huber
+    delta: 1.0
+
+  # Combined loss weights
+  weights:
+    classification: 0.7
+    regression: 0.3
+
+# Meta-labeler configuration
+meta_labeler:
+  enabled: true
+  model: lightgbm  # xgboost, lightgbm
+
+  lightgbm:
+    num_leaves: 31
+    learning_rate: 0.05
+    n_estimators: 100
+    min_child_samples: 20
+
+  xgboost:
+    max_depth: 6
+    learning_rate: 0.05
+    n_estimators: 100
+
+  # Threshold for filtering signals
+  probability_threshold: 0.5
+
+# Data augmentation
+augmentation:
+  enabled: true
+  techniques:
+    - name: gaussian_noise
+      std: 0.01
+    - name: time_warping
+      sigma: 0.2
+    - name: magnitude_warping
+      sigma: 0.2
