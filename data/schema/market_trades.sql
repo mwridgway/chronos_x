@@ -278,6 +278,148 @@ PARTITION BY (exchange, toYYYYMM(order_timestamp))
 ORDER BY (exchange, symbol, order_timestamp, order_id)
 SETTINGS index_granularity = 8192;
 
+-- L3 Orderbook (order-by-order changes)
+CREATE TABLE IF NOT EXISTS chronos.orderbook_l3
+(
+    exchange LowCardinality(String),
+    symbol LowCardinality(String),
+    timestamp DateTime64(6, 'UTC') CODEC(Delta, ZSTD(1)),  -- Microsecond precision
+
+    order_id String CODEC(ZSTD(3)),
+    side Enum8('buy' = 1, 'sell' = -1),
+    price Float64 CODEC(Gorilla, ZSTD(1)),
+    quantity Float64 CODEC(Gorilla, ZSTD(1)),
+    event_type Enum8('add' = 1, 'update' = 2, 'delete' = 3),
+
+    -- Sequence number for ordering
+    sequence UInt64
+)
+ENGINE = MergeTree()
+PARTITION BY (exchange, toYYYYMM(timestamp))
+ORDER BY (exchange, symbol, timestamp, sequence, order_id)
+TTL timestamp + INTERVAL 3 MONTH  -- L3 data is large, shorter retention
+SETTINGS index_granularity = 8192;
+
+-- High-frequency trades with nanosecond precision
+CREATE TABLE IF NOT EXISTS chronos.trades_hf
+(
+    exchange LowCardinality(String),
+    symbol LowCardinality(String),
+    trade_id String CODEC(ZSTD(3)),
+    timestamp DateTime64(9, 'UTC') CODEC(Delta, ZSTD(1)),  -- Nanosecond precision
+
+    price Float64 CODEC(Gorilla, ZSTD(1)),
+    quantity Float64 CODEC(Gorilla, ZSTD(1)),
+    side Enum8('buy' = 1, 'sell' = -1),
+    is_maker Bool DEFAULT false,
+
+    -- Trade direction classification
+    tick_direction Enum8('up' = 1, 'zero' = 0, 'down' = -1),
+
+    -- Derived fields
+    notional Float64 MATERIALIZED price * quantity,
+    date Date MATERIALIZED toDate(timestamp),
+
+    -- Microsecond timestamp for compatibility
+    timestamp_us DateTime64(6) MATERIALIZED timestamp
+)
+ENGINE = MergeTree()
+PARTITION BY (exchange, toYYYYMM(timestamp))
+ORDER BY (exchange, symbol, timestamp, trade_id)
+TTL timestamp + INTERVAL 6 MONTH  -- Shorter retention for HF data
+SETTINGS index_granularity = 8192,
+         storage_policy = 'hot_cold';  -- Use tiered storage if configured
+
+-- Orderbook snapshots with microsecond precision (upgraded from millisecond)
+CREATE TABLE IF NOT EXISTS chronos.orderbook_snapshots_hf
+(
+    exchange LowCardinality(String),
+    symbol LowCardinality(String),
+    timestamp DateTime64(6, 'UTC') CODEC(Delta, ZSTD(1)),  -- Microsecond precision
+
+    -- Top 20 levels each side
+    bid_prices Array(Float64) CODEC(Gorilla, ZSTD(1)),
+    bid_quantities Array(Float64) CODEC(Gorilla, ZSTD(1)),
+    ask_prices Array(Float64) CODEC(Gorilla, ZSTD(1)),
+    ask_quantities Array(Float64) CODEC(Gorilla, ZSTD(1)),
+
+    -- Sequence number
+    sequence UInt64,
+
+    -- Summary metrics
+    mid_price Float64 MATERIALIZED (bid_prices[1] + ask_prices[1]) / 2,
+    spread Float64 MATERIALIZED ask_prices[1] - bid_prices[1],
+    spread_bps Float64 MATERIALIZED (ask_prices[1] - bid_prices[1]) / mid_price * 10000,
+
+    -- Additional microstructure metrics
+    bid_depth_1 Float64 MATERIALIZED bid_quantities[1],
+    ask_depth_1 Float64 MATERIALIZED ask_quantities[1],
+    imbalance Float64 MATERIALIZED (bid_quantities[1] - ask_quantities[1]) / (bid_quantities[1] + ask_quantities[1])
+)
+ENGINE = MergeTree()
+PARTITION BY (exchange, toYYYYMM(timestamp))
+ORDER BY (exchange, symbol, timestamp, sequence)
+TTL timestamp + INTERVAL 3 MONTH
+SETTINGS index_granularity = 8192;
+
+-- Sentiment Signals Table
+CREATE TABLE IF NOT EXISTS chronos.sentiment_signals
+(
+    timestamp DateTime64(3, 'UTC') CODEC(Delta, ZSTD(1)),
+    symbol LowCardinality(String),
+    source Enum8('twitter'=1, 'reddit'=2, 'news'=3, 'onchain'=4),
+
+    -- Sentiment metrics
+    sentiment_score Float32 CODEC(ZSTD(3)),  -- Weighted sentiment score
+    polarity Float32 CODEC(ZSTD(3)),         -- Raw polarity (-1 to 1)
+    subjectivity Float32 CODEC(ZSTD(3)),     -- Subjectivity (0 to 1)
+    confidence Float32 CODEC(ZSTD(3)),       -- Analysis confidence
+
+    -- Classification
+    is_factual Bool DEFAULT false,
+    sentiment_label Enum8('positive'=1, 'neutral'=0, 'negative'=-1),
+
+    -- Engagement metrics
+    volume_factor Float32 CODEC(ZSTD(3)),    -- Normalized volume/engagement
+    engagement_score Float32 CODEC(ZSTD(3)), -- Likes, retweets, upvotes
+
+    -- Metadata
+    text_sample String CODEC(ZSTD(3)),       -- Truncated sample text
+    metadata String CODEC(ZSTD(3))           -- JSON metadata (source-specific)
+)
+ENGINE = MergeTree()
+PARTITION BY (toYYYYMM(timestamp))
+ORDER BY (symbol, timestamp, source)
+TTL timestamp + INTERVAL 3 MONTH
+SETTINGS index_granularity = 8192;
+
+-- Aggregated Sentiment View (hourly)
+CREATE MATERIALIZED VIEW IF NOT EXISTS chronos.sentiment_hourly
+ENGINE = AggregatingMergeTree()
+PARTITION BY toYYYYMM(timestamp)
+ORDER BY (symbol, timestamp, source)
+AS SELECT
+    toStartOfHour(timestamp) AS timestamp,
+    symbol,
+    source,
+    avg(sentiment_score) AS sentiment_avg,
+    stddevPop(sentiment_score) AS sentiment_std,
+    avg(polarity) AS polarity_avg,
+    avg(subjectivity) AS subjectivity_avg,
+    avg(volume_factor) AS volume_avg,
+    count() AS record_count,
+    countIf(sentiment_label = 'positive') AS positive_count,
+    countIf(sentiment_label = 'negative') AS negative_count,
+    countIf(sentiment_label = 'neutral') AS neutral_count,
+    countIf(is_factual = true) AS factual_count,
+    countIf(is_factual = false) AS opinion_count
+FROM chronos.sentiment_signals
+GROUP BY symbol, toStartOfHour(timestamp), source;
+
 -- Create useful indices
 ALTER TABLE chronos.trades ADD INDEX idx_symbol symbol TYPE bloom_filter GRANULARITY 1;
 ALTER TABLE chronos.trades ADD INDEX idx_timestamp timestamp TYPE minmax GRANULARITY 1;
+ALTER TABLE chronos.orderbook_l3 ADD INDEX idx_order_id order_id TYPE bloom_filter GRANULARITY 1;
+ALTER TABLE chronos.trades_hf ADD INDEX idx_symbol symbol TYPE bloom_filter GRANULARITY 1;
+ALTER TABLE chronos.sentiment_signals ADD INDEX idx_symbol symbol TYPE bloom_filter GRANULARITY 1;
+ALTER TABLE chronos.sentiment_signals ADD INDEX idx_source source TYPE set(4) GRANULARITY 1;

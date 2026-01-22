@@ -1,0 +1,116 @@
+# CoinAPI Configuration
+# Alternative data source for multi-exchange cryptocurrency data
+
+coinapi:
+  # API Configuration
+  api_key: ${COINAPI_KEY:-986e7da4-750a-4645-a3d4-346cd965b8c0}  # Set via env or use default
+
+  # Endpoints
+  base_url: https://rest.coinapi.io
+  ws_url: wss://ws.coinapi.io/v1/
+
+  # Rate Limiting
+  rate_limit: 100         # Requests per second (adjust based on plan)
+  timeout: 30             # Request timeout in seconds
+  max_retries: 3          # Number of retries on failure
+
+  # Exchanges to support
+  exchanges:
+    - BINANCE
+    - COINBASE
+    - KRAKEN
+    - BYBIT
+    - OKEX
+    - KUCOIN
+
+  # Default Symbols
+  # Format: EXCHANGE_MARKETTYPE_BASE_QUOTE
+  default_symbols:
+    - BINANCE_SPOT_BTC_USDT
+    - BINANCE_SPOT_ETH_USDT
+    - BINANCE_SPOT_BNB_USDT
+    - BINANCE_SPOT_ADA_USDT
+    - BINANCE_SPOT_SOL_USDT
+    - COINBASE_SPOT_BTC_USD
+    - COINBASE_SPOT_ETH_USD
+    - KRAKEN_SPOT_BTC_USD
+    - KRAKEN_SPOT_ETH_USD
+
+  # Data Types
+  ohlcv:
+    enabled: true
+    periods:
+      - 1MIN
+      - 5MIN
+      - 15MIN
+      - 1HRS
+      - 1DAY
+    default_period: 1MIN
+    default_limit: 1000
+
+  trades:
+    enabled: true
+    default_limit: 1000
+    include_taker_side: true
+
+  quotes:
+    enabled: true
+    default_limit: 1000
+
+  orderbook:
+    enabled: true
+    depth_levels: 20
+    snapshot_only: false    # If true, only current snapshot; if false, historical
+
+  # WebSocket Configuration
+  websocket:
+    enabled: true
+    auto_reconnect: true
+    reconnect_delay: 5      # Seconds
+    max_reconnects: 10
+    heartbeat: false
+    subscribe_data_types:
+      - trade
+      - quote
+      - book
+
+  # Caching
+  cache:
+    enabled: true
+    cache_dir: data/coinapi_cache
+    ttl_seconds: 3600       # 1 hour
+
+  # Batch Operations
+  batch:
+    max_concurrent: 5       # Maximum concurrent requests
+    chunk_size: 100         # Items per batch
+
+  # Data Validation
+  validation:
+    check_timestamps: true
+    check_price_anomalies: true
+    max_price_change_pct: 10  # Maximum price change % between candles
+    remove_duplicates: true
+
+  # Normalization
+  normalize:
+    standardize_symbols: true
+    convert_timestamps: true
+    precision: microseconds
+
+  # Fallback
+  fallback:
+    use_ccxt: true
+    warn_on_fallback: true
+
+  # Monitoring
+  monitoring:
+    log_requests: true
+    log_errors: true
+    track_quota: true
+
+  # API Quota Management (adjust based on your plan)
+  quota:
+    daily_limit: 100000     # Daily request limit
+    warn_at_pct: 80         # Warn when 80% of quota used
+    pause_at_pct: 95        # Pause requests at 95% quota

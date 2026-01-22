@@ -46,13 +46,20 @@ def create_db_client(cfg: DictConfig) -> ClickHouseClient:
 def prepare_features(
     ohlcv_data: list[dict],
     frac_diff_d: float | None = None,
+    use_microstructure: bool = True,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Prepare features from OHLCV data.
+
+    Args:
+        ohlcv_data: List of OHLCV dictionaries
+        frac_diff_d: Optional fractional differentiation parameter
+        use_microstructure: Whether to compute microstructure features (OFI, VPIN, etc.)
 
     Returns:
         Tuple of (features, prices)
     """
     import polars as pl
+    from chronos_x.data.processing.microstructure import MicrostructureProcessor
 
     # Convert to DataFrame
     df = pl.DataFrame(ohlcv_data)
@@ -83,6 +90,15 @@ def prepare_features(
          (pl.col("buy_volume") + pl.col("sell_volume") + 1)).alias("volume_imbalance"),
     ])
 
+    # Microstructure features (OFI, VPIN, spreads, etc.)
+    if use_microstructure:
+        processor = MicrostructureProcessor(
+            window=20,
+            vpin_bucket_size=50,
+            ofi_normalize_window=100
+        )
+        df = processor.process_ohlcv(df)
+
     # Apply fractional differentiation if specified
     if frac_diff_d is not None:
         df, _ = frac_diff_dataframe(df, ["close"], d=frac_diff_d)
@@ -93,6 +109,22 @@ def prepare_features(
         "volatility_20", "volume_imbalance",
     ]
     feature_cols += [f"ma_{w}" for w in [5, 10, 20, 50]]
+
+    # Add microstructure features if computed
+    if use_microstructure:
+        microstructure_cols = [
+            "vpin",
+            "volume_imbalance_ma",
+            "realized_volatility",
+            "parkinson_volatility",
+            "avg_trade_size",
+            "avg_trade_size_ma",
+            "trade_intensity",
+        ]
+        # Only add columns that exist in the dataframe
+        for col in microstructure_cols:
+            if col in df.columns:
+                feature_cols.append(col)
 
     # Filter to existing columns
     feature_cols = [c for c in feature_cols if c in df.columns]
@@ -119,6 +151,7 @@ def train(
     num_layers: int = typer.Option(4, help="Number of Mamba layers"),
     output_dir: str = typer.Option("./models", help="Output directory for model"),
     config_path: str = typer.Option("config", help="Path to Hydra config directory"),
+    use_microstructure: bool = typer.Option(True, help="Use microstructure features (OFI, VPIN, etc.)"),
 ) -> None:
     """Train a CryptoMamba model."""
     console.print("[blue]Starting model training...[/blue]")
@@ -159,7 +192,9 @@ def train(
 
         # Prepare features
         console.print("[blue]Preparing features...[/blue]")
-        features, prices = prepare_features(ohlcv_data)
+        if use_microstructure:
+            console.print("[blue]Computing microstructure features (OFI, VPIN, etc.)...[/blue]")
+        features, prices = prepare_features(ohlcv_data, use_microstructure=use_microstructure)
 
         # Generate labels
         console.print("[blue]Generating labels...[/blue]")
@@ -244,6 +279,7 @@ def cross_validate(
     symbol: str = typer.Argument("BTC/USDT", help="Trading symbol"),
     n_splits: int = typer.Option(5, help="Number of CV splits"),
     config_path: str = typer.Option("config", help="Path to Hydra config directory"),
+    use_microstructure: bool = typer.Option(True, help="Use microstructure features (OFI, VPIN, etc.)"),
 ) -> None:
     """Run cross-validation on model."""
     console.print("[blue]Starting cross-validation...[/blue]")
@@ -266,7 +302,9 @@ def cross_validate(
             raise typer.Exit(1)
 
         # Prepare data
-        features, prices = prepare_features(ohlcv_data)
+        if use_microstructure:
+            console.print("[blue]Computing microstructure features (OFI, VPIN, etc.)...[/blue]")
+        features, prices = prepare_features(ohlcv_data, use_microstructure=use_microstructure)
 
         import polars as pl
         price_df = pl.DataFrame({"close": prices, "timestamp": [d["timestamp"] for d in ohlcv_data]})

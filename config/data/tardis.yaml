@@ -1,0 +1,88 @@
+# Tardis.dev Configuration
+# High-frequency market data configuration for professional-grade tick data
+
+tardis:
+  # API Configuration
+  api_key: ${TARDIS_API_KEY}  # Set via environment variable
+
+  # Exchanges to support
+  exchanges:
+    - binance
+    - coinbase
+    - kraken
+    - bybit
+    - okex
+
+  # Data types to collect
+  # Available: trades, book_snapshot_5, book_snapshot_25, book_change,
+  #            book_l3_snapshot, derivative_ticker, liquidation
+  data_types:
+    - trades              # Tick-by-tick trade data
+    - book_snapshot_5     # L2 orderbook snapshots (5 levels)
+    - book_change         # L3 orderbook change events
+
+  # Buffer Configuration
+  buffer_size: 10000      # Number of records to buffer before flushing
+
+  # Cache Configuration
+  cache_dir: data/tardis_cache
+  use_cache: true
+  cache_ttl_hours: 24     # Cache time-to-live
+
+  # Data Quality
+  validate_timestamps: true
+  microsecond_precision: true
+
+  # Historical Data Loading
+  historical:
+    batch_size: 1000000   # Records per batch
+    max_concurrent: 3     # Maximum concurrent downloads
+
+  # Real-time Streaming (requires tardis-machine)
+  streaming:
+    enabled: false        # Enable real-time streaming
+    reconnect_delay: 5    # Seconds between reconnection attempts
+    max_reconnects: 10
+
+  # Rate Limiting
+  rate_limit:
+    enabled: true
+    requests_per_second: 10
+
+  # Symbols to track (can be overridden per request)
+  default_symbols:
+    binance:
+      - BTCUSDT
+      - ETHUSDT
+      - BNBUSDT
+      - ADAUSDT
+      - SOLUSDT
+    coinbase:
+      - BTC-USD
+      - ETH-USD
+      - SOL-USD
+
+  # Orderbook Configuration
+  orderbook:
+    depth_levels: 20      # Number of price levels to track
+    reconstruction: true  # Reconstruct full orderbook from L3 events
+    snapshot_interval_ms: 100  # Snapshot frequency
+
+  # Feature Computation
+  features:
+    compute_microstructure: true
+    include_ofi: true
+    include_vpin: true
+    include_effective_spread: true
+
+  # Data Validation
+  validation:
+    check_gaps: true
+    max_gap_ms: 1000      # Maximum acceptable gap in milliseconds
+    check_duplicates: true
+    check_ordering: true
+
+  # Fallback Configuration
+  fallback:
+    use_ccxt: true        # Fall back to CCXT if Tardis unavailable
+    warn_on_fallback: true

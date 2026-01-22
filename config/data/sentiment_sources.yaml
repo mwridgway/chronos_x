@@ -1,0 +1,207 @@
+# Sentiment Data Sources Configuration
+# Configuration for collecting sentiment data from various sources
+
+sentiment:
+  # General Settings
+  enabled: true
+  lookback_hours: 24
+  update_frequency_minutes: 60
+  min_confidence_threshold: 0.3
+
+  # Twitter/X Configuration
+  twitter:
+    enabled: false  # Requires Twitter API credentials
+    api_key: ${TWITTER_API_KEY}
+    api_secret: ${TWITTER_API_SECRET}
+    bearer_token: ${TWITTER_BEARER_TOKEN}
+
+    # Search parameters
+    keywords:
+      - "#BTC"
+      - "#Bitcoin"
+      - "$BTC"
+      - "#ETH"
+      - "#Ethereum"
+      - "$ETH"
+      - "#crypto"
+      - "#cryptocurrency"
+
+    # Influencer accounts to track (high engagement)
+    influencers:
+      - "APompliano"
+      - "VitalikButerin"
+      - "CZ_Binance"
+      - "brian_armstrong"
+      - "novogratz"
+
+    max_tweets_per_query: 100
+    min_followers: 1000  # Minimum followers for credibility
+    exclude_retweets: false
+    language: "en"
+
+  # Reddit Configuration
+  reddit:
+    enabled: true  # Free tier available
+    client_id: ${REDDIT_CLIENT_ID}
+    client_secret: ${REDDIT_CLIENT_SECRET}
+    user_agent: "chronos-x-sentiment-analyzer/1.0"
+
+    subreddits:
+      - "CryptoCurrency"
+      - "Bitcoin"
+      - "ethereum"
+      - "CryptoMarkets"
+      - "BitcoinMarkets"
+      - "ethtrader"
+      - "altcoin"
+
+    sort_by: "hot"  # hot, new, top, rising
+    time_filter: "day"  # hour, day, week, month
+    limit_per_subreddit: 50
+    min_upvotes: 10
+
+  # News Sources Configuration
+  news:
+    enabled: true
+    sources:
+      coindesk:
+        enabled: true
+        url: "https://www.coindesk.com/arc/outboundfeeds/rss/"
+        weight: 1.5  # Higher weight for established sources
+      cointelegraph:
+        enabled: true
+        url: "https://cointelegraph.com/rss"
+        weight: 1.2
+      decrypt:
+        enabled: true
+        url: "https://decrypt.co/feed"
+        weight: 1.0
+      bitcoinmagazine:
+        enabled: true
+        url: "https://bitcoinmagazine.com/.rss/full/"
+        weight: 1.2
+      theblock:
+        enabled: true
+        url: "https://www.theblock.co/rss.xml"
+        weight: 1.5
+
+    # News analysis
+    extract_entities: true  # Extract crypto symbols from articles
+    min_article_length: 100  # Characters
+    max_age_hours: 48
+
+  # On-Chain Metrics (via Glassnode)
+  onchain:
+    enabled: false  # Requires paid Glassnode subscription
+    api_key: ${GLASSNODE_API_KEY}
+    base_url: "https://api.glassnode.com"
+
+    # Metrics to track
+    metrics:
+      - name: "sopr"  # Spent Output Profit Ratio
+        endpoint: "/v1/metrics/indicators/sopr"
+        interval: "1h"
+      - name: "exchange_netflow"
+        endpoint: "/v1/metrics/transactions/transfers_volume_exchanges_net"
+        interval: "1h"
+      - name: "active_addresses"
+        endpoint: "/v1/metrics/addresses/active_count"
+        interval: "24h"
+      - name: "hodl_waves"
+        endpoint: "/v1/metrics/supply/hodl_waves"
+        interval: "24h"
+      - name: "mvrv_ratio"  # Market Value to Realized Value
+        endpoint: "/v1/metrics/market/mvrv"
+        interval: "24h"
+
+    assets:
+      - "BTC"
+      - "ETH"
+
+  # Sentiment Analysis Configuration
+  analysis:
+    # Model selection
+    use_finbert: false  # Requires transformers library (heavy)
+    use_vader: true     # Lightweight, good for social media
+    use_crypto_lexicon: true  # Custom crypto terms
+    use_textblob: true  # Baseline
+
+    # Ensemble weights (if multiple models enabled)
+    weights:
+      textblob: 0.2
+      vader: 0.3
+      finbert: 0.4
+      crypto_lexicon: 0.3
+
+    # Classification
+    polarity_threshold:
+      positive: 0.05
+      negative: -0.05
+      neutral_range: [-0.05, 0.05]
+
+    subjectivity_threshold:
+      factual: 0.3
+      opinion: 0.6
+
+  # Aggregation Settings
+  aggregation:
+    time_windows:
+      - "1h"
+      - "4h"
+      - "24h"
+
+    # Weighting strategies
+    engagement_weight: 0.3  # Weight by likes, retweets, upvotes
+    recency_weight: 0.2     # More recent = higher weight
+    source_weight: 0.5      # Weight by source credibility
+
+    # Minimum sample size for valid aggregation
+    min_samples: 5
+
+  # Symbol Extraction
+  symbol_extraction:
+    # Regex patterns for extracting crypto symbols
+    patterns:
+      - '[\$#]([A-Z]{3,5})\b'  # $BTC, #ETH
+      - '\b(BTC|BITCOIN)\b'
+      - '\b(ETH|ETHEREUM)\b'
+      - '\b(BNB|BINANCE COIN)\b'
+
+    # Symbol mapping
+    aliases:
+      BITCOIN: BTC
+      ETHEREUM: ETH
+      "BINANCE COIN": BNB
+
+  # Data Quality
+  quality:
+    remove_duplicates: true
+    min_text_length: 10
+    max_text_length: 5000
+    filter_spam: true
+
+    # Spam indicators
+    spam_patterns:
+      - "airdrop"
+      - "giveaway"
+      - "free.*crypto"
+      - "click.*link"
+
+  # Storage
+  storage:
+    cache_enabled: true
+    cache_ttl_hours: 6
+    database_enabled: true
+    database_table: "chronos.sentiment_signals"
+
+  # Rate Limiting
+  rate_limits:
+    twitter_requests_per_15min: 450
+    reddit_requests_per_minute: 60
+    news_fetch_delay_seconds: 1
+
+  # Monitoring
+  monitoring:
+    log_collection_stats: true
+    alert_on_api_errors: true
+    track_sentiment_distribution: true
