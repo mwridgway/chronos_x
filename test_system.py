@@ -225,12 +225,15 @@ def run_backtest(
     seq_len = 256
     signals = np.zeros(len(features))
 
+    # Get device from model
+    device = next(model.parameters()).device
+
     model.eval()
     with torch.no_grad():
         for i in range(seq_len, len(features)):
             x = features[i - seq_len:i]
             # Features are already normalized in prepare_features, no need to normalize again
-            x_tensor = torch.tensor(x, dtype=torch.float32).unsqueeze(0)
+            x_tensor = torch.tensor(x, dtype=torch.float32).unsqueeze(0).to(device)
 
             output = model(x_tensor)
             pred = output["class_logits"].argmax(dim=-1).item()
